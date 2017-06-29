@@ -1351,7 +1351,7 @@ struct Context::Impl
                     const String& buildflags, String& errmsg)
     {
         size_t limit = getProgramCountLimit();
-        String key = Program::getPrefix(buildflags);
+        String key = Program::getPrefix(buildflags) + cv::format("%08llx", src.hash());
         {
             cv::AutoLock lock(program_cache_mutex);
             phash_t::iterator it = phash.find(key);
