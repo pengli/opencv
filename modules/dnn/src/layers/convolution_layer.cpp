@@ -721,11 +721,8 @@ public:
         CV_Assert(outputs[0].size[1] % ngroups == 0);
 
 #ifdef HAVE_OPENCL
-        if (!bnorm && !activ)
-        {
-            bool ret = forward_ocl(inputs, outputs, internals);
-            if (ret) return;
-        }
+        if (!forward_ocl(inputs, outputs, internals))
+            return;
 #endif
 
         int k, outCn = blobs[0].size[0];
