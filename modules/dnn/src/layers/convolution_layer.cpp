@@ -149,7 +149,10 @@ public:
     Ptr<ActivationLayer> activ;
     Ptr<BatchNormLayer> bnorm;
     Ptr<ScaleLayer> scaleLayer;
+
+#ifdef HAVE_OPENCL
     Ptr<greentea::LibDNNConvSpatial<float>> convolutionOp;
+#endif
 
     MatShape computeColRowShape(const MatShape &inpShape, const MatShape &outShape) const
     {
@@ -647,6 +650,7 @@ public:
         }
     };
 
+#ifdef HAVE_OPENCL
     bool forward_ocl(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
         const ocl::Device & dev = ocl::Device::getDefault();
@@ -699,6 +703,7 @@ public:
         }
         return true;
     }
+#endif
 
     void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
@@ -713,11 +718,13 @@ public:
         int ngroups = inputs[0]->size[1]/blobs[0].size[1];
         CV_Assert(outputs[0].size[1] % ngroups == 0);
 
+#ifdef HAVE_OPENCL
         if (!bnorm && !activ)
         {
             bool ret = forward_ocl(inputs, outputs, internals);
             if (ret) return;
         }
+#endif
 
         int k, outCn = blobs[0].size[0];
 
