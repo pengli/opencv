@@ -126,47 +126,89 @@ void testLayerUsingCaffeModels(String basename, bool useCaffeModel = false, bool
 
 TEST(Layer_Test_Softmax, Accuracy)
 {
-     testLayerUsingCaffeModels("layer_softmax");
+    OCL_OFF(testLayerUsingCaffeModels("layer_softmax"));
+}
+
+OCL_TEST(Layer_Test_Softmax, Accuracy)
+{
+    OCL_ON(testLayerUsingCaffeModels("layer_softmax"));
+    OCL_OFF();
 }
 
 TEST(Layer_Test_LRN_spatial, Accuracy)
 {
-     testLayerUsingCaffeModels("layer_lrn_spatial");
+    OCL_OFF(testLayerUsingCaffeModels("layer_lrn_spatial"));
+}
+
+OCL_TEST(Layer_Test_LRN_spatial, Accuracy)
+{
+    OCL_ON(testLayerUsingCaffeModels("layer_lrn_spatial"));
+    OCL_OFF();
 }
 
 TEST(Layer_Test_LRN_channels, Accuracy)
 {
-     testLayerUsingCaffeModels("layer_lrn_channels");
+    OCL_OFF(testLayerUsingCaffeModels("layer_lrn_channels"));
+}
+
+OCL_TEST(Layer_Test_LRN_channels, Accuracy)
+{
+    OCL_ON(testLayerUsingCaffeModels("layer_lrn_channels"));
+    OCL_OFF();
 }
 
 TEST(Layer_Test_Convolution, Accuracy)
 {
-     testLayerUsingCaffeModels("layer_convolution", true);
+    OCL_OFF(testLayerUsingCaffeModels("layer_convolution", true));
+}
+
+OCL_TEST(Layer_Test_Convolution, Accuracy)
+{
+    OCL_ON(testLayerUsingCaffeModels("layer_convolution", true));
+    OCL_OFF();
 }
 
 TEST(Layer_Test_DeConvolution, Accuracy)
 {
-     testLayerUsingCaffeModels("layer_deconvolution", true, false);
+    testLayerUsingCaffeModels("layer_deconvolution", true, false);
 }
 
 TEST(Layer_Test_InnerProduct, Accuracy)
 {
-     testLayerUsingCaffeModels("layer_inner_product", true);
+    OCL_OFF(testLayerUsingCaffeModels("layer_inner_product", true));
+}
+
+OCL_TEST(Layer_Test_InnerProduct, Accuracy)
+{
+    OCL_ON(testLayerUsingCaffeModels("layer_inner_product", true));
+    OCL_OFF();
 }
 
 TEST(Layer_Test_Pooling_max, Accuracy)
 {
-     testLayerUsingCaffeModels("layer_pooling_max");
+    OCL_OFF(testLayerUsingCaffeModels("layer_pooling_max"));
+}
+
+OCL_TEST(Layer_Test_Pooling_max, Accuracy)
+{
+    OCL_ON(testLayerUsingCaffeModels("layer_pooling_max"));
+    OCL_OFF();
 }
 
 TEST(Layer_Test_Pooling_ave, Accuracy)
 {
-     testLayerUsingCaffeModels("layer_pooling_ave");
+     OCL_OFF(testLayerUsingCaffeModels("layer_pooling_ave"));
+}
+
+OCL_TEST(Layer_Test_Pooling_ave, Accuracy)
+{
+    OCL_ON(testLayerUsingCaffeModels("layer_pooling_ave"));
+    OCL_OFF();
 }
 
 TEST(Layer_Test_MVN, Accuracy)
 {
-     testLayerUsingCaffeModels("layer_mvn");
+    testLayerUsingCaffeModels("layer_mvn");
 }
 
 void testReshape(const MatShape& inputShape, const MatShape& targetShape,
@@ -212,22 +254,22 @@ TEST(Layer_Test_Reshape, Accuracy)
 
 TEST(Layer_Test_BatchNorm, Accuracy)
 {
-     testLayerUsingCaffeModels("layer_batch_norm", true);
+    testLayerUsingCaffeModels("layer_batch_norm", true);
 }
 
 TEST(Layer_Test_ReLU, Accuracy)
 {
-     testLayerUsingCaffeModels("layer_relu");
+    testLayerUsingCaffeModels("layer_relu");
 }
 
 TEST(Layer_Test_Dropout, Accuracy)
 {
-     testLayerUsingCaffeModels("layer_dropout");
+    testLayerUsingCaffeModels("layer_dropout");
 }
 
 TEST(Layer_Test_Concat, Accuracy)
 {
-     testLayerUsingCaffeModels("layer_concat");
+    testLayerUsingCaffeModels("layer_concat");
 }
 
 //template<typename XMat>
