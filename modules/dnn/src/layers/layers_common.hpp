@@ -50,7 +50,6 @@
 #include "layers/layers_common.simd_declarations.hpp"
 
 #ifdef HAVE_OPENCL
-#include "opencv2/core/opencl/runtime/opencl_core.hpp"
 #include "libdnn.hpp"
 #endif
 
