@@ -133,17 +133,17 @@ public:
             UMat inpMat, outMat, maskMat;
             cl_mem in_mem, out_mem, mask_mem = NULL;
 
-            inpMat = inputs[ii]->getUMat(ACCESS_READ);
+            inputs[ii]->copyTo(inpMat);
             in_mem = (cl_mem)inpMat.handle(ACCESS_READ);
 
             if (type == MAX)
             {
-                outMat = outputs[2 * ii].getUMat(ACCESS_WRITE);
+                outputs[2 * ii].copyTo(outMat);
+                outputs[2 * ii + 1].copyTo(maskMat);
                 out_mem = (cl_mem)outMat.handle(ACCESS_WRITE);
-                maskMat = outputs[2 * ii + 1].getUMat(ACCESS_WRITE);
                 mask_mem = (cl_mem)maskMat.handle(ACCESS_WRITE);
             } else {
-                outMat = outputs[ii].getUMat(ACCESS_WRITE);
+                outputs[ii].copyTo(outMat);
                 out_mem = (cl_mem)outMat.handle(ACCESS_WRITE);
             }
 
@@ -151,6 +151,14 @@ public:
 
             if (!poolOp->Forward((float *)in_mem, (float *)out_mem, (float *)mask_mem))
                 return false;
+
+            if (type == MAX)
+            {
+                outMat.copyTo(outputs[2 * ii]);
+                maskMat.copyTo(outputs[2 * ii + 1]);
+            } else {
+                outMat.copyTo(outputs[ii]);
+            }
         }
 
         return true;

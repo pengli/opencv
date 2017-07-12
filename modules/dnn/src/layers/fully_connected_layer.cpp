@@ -272,14 +272,16 @@ public:
         for (size_t i = 0; i < input.size(); i++)
         {
             UMat srcMat, dstMat;
-            srcMat = input[i]->getUMat(ACCESS_READ);
-            dstMat = output[i].getUMat(ACCESS_WRITE);
+            input[i]->copyTo(srcMat);
+            output[i].copyTo(dstMat);
 
             cl_mem in_mem = (cl_mem)srcMat.handle(ACCESS_READ);
             cl_mem out_mem = (cl_mem)dstMat.handle(ACCESS_WRITE);
 
             if (!innerProductOp->Forward((float *)in_mem, (float *)weight_mem, (float *)bias_mem, (float *)out_mem))
                 return false;
+
+            dstMat.copyTo(output[i]);
         }
 
         return true;

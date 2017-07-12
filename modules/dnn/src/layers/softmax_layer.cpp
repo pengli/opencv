@@ -92,10 +92,9 @@ public:
     {
         const Mat &src = *inputs[0];
         UMat srcMat, dstMat, bufMat;
-        srcMat = src.getUMat(ACCESS_READ);
-        dstMat = outputs[0].getUMat(ACCESS_WRITE);
+        src.copyTo(srcMat);
         srcMat.copyTo(dstMat);
-        bufMat = internals[0].getUMat(ACCESS_WRITE);
+        internals[0].copyTo(bufMat);
 
         int axis = clamp(axisRaw, src.dims);
         size_t outerSize = src.total(0, axis);
@@ -142,6 +141,8 @@ public:
                   ocl::KernelArg::PtrReadOnly(bufMat), ocl::KernelArg::PtrReadWrite(dstMat));
         if (!kdiv.run(1, &totalSize, &wgSize, false))
             return false;
+
+        dstMat.copyTo(outputs[0]);
 
         return true;
 

@@ -682,8 +682,8 @@ public:
         for (size_t ii = 0; ii < outputs.size(); ii++)
         {
             UMat inpMat, outMat;
-            inpMat = inputs[ii]->getUMat(ACCESS_READ);
-            outMat = outputs[ii].getUMat(ACCESS_WRITE);
+            inputs[ii]->copyTo(inpMat);
+            outputs[ii].copyTo(outMat);
 
             int batch_size = inpMat.size[0];
             cl_mem in_mem = (cl_mem)inpMat.handle(ACCESS_READ);
@@ -692,6 +692,8 @@ public:
             if (!convolutionOp->Forward((float *)in_mem, (float *)weight_mem, (float *)bias_mem,
                                         (float *)out_mem, batch_size))
                return false;
+
+            outMat.copyTo(outputs[ii]);
         }
         return true;
     }
