@@ -1273,7 +1273,7 @@ struct Net::Impl
             allocateLayer(lid, layersShapes);
         }
 
-        if (preferableTarget == DNN_TARGET_CPU)
+        if (0)
             fuseLayers(blobsToKeep_);
     }
 
