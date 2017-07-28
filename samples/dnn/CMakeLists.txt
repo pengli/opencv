@@ -1,5 +1,5 @@
 SET(OPENCV_DNN_SAMPLES_REQUIRED_DEPS opencv_core opencv_imgproc opencv_dnn
-    opencv_imgcodecs opencv_videoio opencv_highgui
+    opencv_imgcodecs opencv_videoio opencv_highgui opencv_objdetect
     ${OpenCV_LIB_COMPONENTS})
 
 ocv_check_dependencies(${OPENCV_DNN_SAMPLES_REQUIRED_DEPS})
