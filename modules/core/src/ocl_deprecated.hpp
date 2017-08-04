@@ -1202,6 +1202,8 @@ OCL_FUNC(cl_int, clSetEventCallback,
 
 OCL_FUNC(cl_int, clReleaseEvent, (cl_event event), (event))
 
+OCL_FUNC(cl_int, clWaitForEvents, (cl_uint num_events, cl_event * event_list), (num_events, event_list))
+
 }
 
 #endif
