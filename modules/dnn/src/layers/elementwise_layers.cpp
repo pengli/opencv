@@ -157,6 +157,14 @@ public:
         return true;
     }
 
+    void forward(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        CV_OCL_RUN((this->preferableTarget == DNN_TARGET_OPENCL) && ocl::Device::getDefault().isIntel(),
+                   func.apply_new(inputs, outputs, internals))
+
+        printf("-------- ReLU forward failed\n");
+    }
+
     void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
         CV_TRACE_FUNCTION();
@@ -281,6 +289,28 @@ struct ReLUFunctor
 
         return true;
     }
+
+    bool apply_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        size_t wgSize = ocl::Device::getDefault().maxWorkGroupSize();
+
+        for (size_t i = 0; i < inputs.size(); i++)
+        {
+            CV_Assert((inputs[i]->offset == 0) && (outputs[i].offset == 0));
+
+            ocl::Kernel ker;
+            size_t gSize = inputs[i]->total();
+
+            CV_Assert(initKernel(ker, *inputs[i]));
+            ker.set(0, (int)gSize);
+            ker.set(1, ocl::KernelArg::PtrReadOnly(*inputs[i]));
+            ker.set(2, ocl::KernelArg::PtrWriteOnly(outputs[i]));
+
+            CV_Assert(ker.run(1, &gSize, &wgSize, false));
+        }
+
+        return true;
+    }
 #endif
 
 #ifdef HAVE_HALIDE
@@ -323,6 +353,11 @@ struct TanHFunctor
         // TODO: implement OCL version
         return false;
     }
+
+    bool apply_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        return false;
+    }
 #endif
 
 #ifdef HAVE_HALIDE
@@ -356,6 +391,11 @@ struct SigmoidFunctor
     bool applyOCL(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
         // TODO: implement OCL version
+        return false;
+    }
+
+    bool apply_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
         return false;
     }
 #endif
@@ -395,6 +435,11 @@ struct ELUFunctor
         // TODO: implement OCL version
         return false;
     }
+
+    bool apply_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        return false;
+    }
 #endif
 
 #ifdef HAVE_HALIDE
@@ -430,6 +475,11 @@ struct AbsValFunctor
         // TODO: implement OCL version
         return false;
     }
+
+    bool apply_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        return false;
+    }
 #endif
 
 #ifdef HAVE_HALIDE
@@ -463,6 +513,11 @@ struct BNLLFunctor
     bool applyOCL(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
         // TODO: implement OCL version
+        return false;
+    }
+
+    bool apply_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
         return false;
     }
 #endif
@@ -520,6 +575,11 @@ struct PowerFunctor
     bool applyOCL(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
         // TODO: implement OCL version
+        return false;
+    }
+
+    bool apply_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
         return false;
     }
 #endif
@@ -595,6 +655,11 @@ struct ChannelsPReLUFunctor
     bool applyOCL(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
         // TODO: implement OCL version
+        return false;
+    }
+
+    bool apply_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
         return false;
     }
 #endif

@@ -703,6 +703,55 @@ public:
     }
 #endif
 
+    bool forward_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        int group = inputs[0]->size[1] / blobs[0].size[1];
+
+        if (convolutionOp.empty())
+        {
+            OCL4DNNConvConfig config;
+            config.in_shape = {inputs[0]->size[0], inputs[0]->size[1], inputs[0]->size[2], inputs[0]->size[3]};
+            config.out_shape = {outputs[0].size[0], outputs[0].size[1], outputs[0].size[2], outputs[0].size[3]};
+            config.kernel = {kernel.height, kernel.width};
+            config.pad = {pad.height, pad.width};
+            config.stride = {stride.height, stride.width};
+            config.dilation = {dilation.height, dilation.width};
+            config.group = group;
+            config.bias_term = (hasBias()) ? true : false;
+            config.weights_backward = false;
+            config.bias_backward = false;
+
+            convolutionOp = Ptr<OCL4DNNConvSpatial<float> >(new OCL4DNNConvSpatial<float>(config));
+        }
+
+        UMat weights, biases;
+        weights = blobs[0].getUMat(ACCESS_READ);
+        if (hasBias()) biases = blobs[1].getUMat(ACCESS_READ);
+
+        cl_mem weight_mem = (cl_mem)weights.handle(ACCESS_READ);
+        cl_mem bias_mem = (cl_mem)biases.handle(ACCESS_READ);
+
+        for (size_t ii = 0; ii < outputs.size(); ii++)
+        {
+            int batch_size = inputs[ii]->size[0];
+            cl_mem in_mem = (cl_mem)inputs[ii]->handle(ACCESS_READ);
+            cl_mem out_mem = (cl_mem)outputs[ii].handle(ACCESS_WRITE);
+
+            if (!convolutionOp->Forward((float *)in_mem, (float *)weight_mem, (float *)bias_mem,
+                                        (float *)out_mem, batch_size))
+                return false;
+        }
+        return true;
+    }
+
+    void forward(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        CV_OCL_RUN((preferableTarget == DNN_TARGET_OPENCL) && ocl::Device::getDefault().isIntel(),
+                   forward_new(inputs, outputs, internals))
+
+        printf("-------- conv forward failed\n");
+    }
+
     void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
         CV_TRACE_FUNCTION();

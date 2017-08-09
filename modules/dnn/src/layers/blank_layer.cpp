@@ -62,6 +62,14 @@ public:
         return true;
     }
 
+    void forward(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        /*
+        for (int i = 0, n = outputs.size(); i < n; ++i)
+            inputs[i]->copyTo(outputs[i]);
+        */
+    }
+
     void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
         CV_TRACE_FUNCTION();
