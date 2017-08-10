@@ -1309,7 +1309,7 @@ struct Net::Impl
             if( !ld.skipFlags[DNN_BACKEND_DEFAULT] )
             {
                 //printf("forwarding %s: %s\n", layer->name.c_str(), layer->type.c_str());
-                if (0 && preferableTarget == DNN_TARGET_OPENCL)
+                if (preferableTarget == DNN_TARGET_OPENCL)
                     layer->forward(ld.shadow_inputBlobs, ld.shadow_outputBlobs, ld.shadow_internals);
                 else
                     layer->forward(ld.inputBlobs, ld.outputBlobs, ld.internals);

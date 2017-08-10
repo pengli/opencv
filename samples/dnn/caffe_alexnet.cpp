@@ -51,9 +51,9 @@ using namespace cv::dnn;
 using namespace std;
 
 /* Find best class for the blob (i. e. class with maximal probability) */
-static void getMaxClass(const Mat &probBlob, int *classId, double *classProb)
+static void getMaxClass(const UMat &probBlob, int *classId, double *classProb)
 {
-    Mat probMat = probBlob.reshape(1, 1); //reshape the blob to 1x1000 matrix
+    Mat probMat = probBlob.getMat(ACCESS_READ).reshape(1, 1); //reshape the blob to 1x1000 matrix
     Point classNumber;
 
     minMaxLoc(probMat, NULL, classProb, NULL, &classNumber);
@@ -123,10 +123,10 @@ int main(int argc, char **argv)
                                   Scalar(104, 117, 123));   //Convert Mat to batch of images
     //! [Prepare blob]
 
-    Mat prob;
+    UMat prob;
 
     net.setInput(inputBlob, "data");        //set the network input
-    prob = net.forward("prob");             //compute output
+    net.forward(prob, "prob");              //compute output
 
     cv::TickMeter t;
     for (int i = 0; i < 10; i++)
@@ -137,7 +137,7 @@ int main(int argc, char **argv)
         //! [Set input blob]
         t.start();
         //! [Make forward pass]
-        prob = net.forward("prob");         //compute output
+        net.forward(prob, "prob");          //compute output
         //! [Make forward pass]
         t.stop();
     }
