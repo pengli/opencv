@@ -156,6 +156,7 @@ public:
 
 #ifdef HAVE_OPENCL
     Ptr<OCL4DNNConvSpatial<float> > convolutionOp;
+    std::vector<UMat> shadow_blobs;
 #endif
 
     MatShape computeColRowShape(const MatShape &inpShape, const MatShape &outShape) const
@@ -724,12 +725,8 @@ public:
             convolutionOp = Ptr<OCL4DNNConvSpatial<float> >(new OCL4DNNConvSpatial<float>(config));
         }
 
-        UMat weights, biases;
-        weights = blobs[0].getUMat(ACCESS_READ);
-        if (hasBias()) biases = blobs[1].getUMat(ACCESS_READ);
-
-        cl_mem weight_mem = (cl_mem)weights.handle(ACCESS_READ);
-        cl_mem bias_mem = (cl_mem)biases.handle(ACCESS_READ);
+        cl_mem weight_mem = (cl_mem)shadow_blobs[0].handle(ACCESS_READ);
+        cl_mem bias_mem = hasBias() ? (cl_mem)shadow_blobs[1].handle(ACCESS_READ) : NULL;
 
         for (size_t ii = 0; ii < outputs.size(); ii++)
         {
@@ -1315,8 +1312,14 @@ static void initConvDeconvLayerFromCaffe(Ptr<BaseConvolutionLayer> l, const Laye
 
 Ptr<BaseConvolutionLayer> ConvolutionLayer::create(const LayerParams &params)
 {
-    Ptr<BaseConvolutionLayer> l(new ConvolutionLayerImpl);
+    ConvolutionLayerImpl* ptr = new ConvolutionLayerImpl;
+    Ptr<BaseConvolutionLayer> l(ptr);
     initConvDeconvLayerFromCaffe(l, params);
+
+    size_t n = params.blobs.size();
+    ptr->shadow_blobs.resize(n);
+    for (int i = 0; i < n; i++) params.blobs[i].copyTo(ptr->shadow_blobs[i]);
+
     return l;
 }
 

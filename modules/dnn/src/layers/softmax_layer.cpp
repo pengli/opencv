@@ -171,6 +171,14 @@ public:
     }
 #endif
 
+    int total_shape(const UMat src, int start, int end = INT_MAX)
+    {
+        int total = 1;
+        if (end == INT_MAX) end = src.dims;
+        for (int i = start; i < end; i++) total *= src.size[i];
+        return total;
+    }
+
     bool forward_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
     {
         if (softmaxOp.empty())
@@ -196,15 +204,14 @@ public:
         UMat& srcMat = *inputs[0];
         UMat& dstMat = outputs[0];
         UMat& bufMat = internals[0];
-        Mat src = inputs[0]->getMat(ACCESS_READ);
-        srcMat.copyTo(dstMat);
+        dstMat = srcMat;
 
-        int axis = clamp(axisRaw, src.dims);
-        size_t outerSize = src.total(0, axis);
-        size_t channels = src.size[axis];
-        size_t innerSize = src.total(axis + 1);
+        int axis = clamp(axisRaw, srcMat.dims);
+        size_t outerSize = total_shape(srcMat, 0, axis);
+        size_t channels = srcMat.size[axis];
+        size_t innerSize = total_shape(srcMat, axis + 1);
 
-        String buildOpts = String("-DT=") + ocl::typeToStr(src.type());
+        String buildOpts = String("-DT=") + ocl::typeToStr(srcMat.type());
         ocl::Kernel kmax, ksub, ksum, kdiv;
 
         if (!kmax.create("kernel_channel_max", ocl::dnn::softmax_oclsrc, buildOpts))
@@ -221,7 +228,7 @@ public:
 
         size_t wgSize = ocl::Device::getDefault().maxWorkGroupSize();
         size_t bufSize = internals[0].total();
-        size_t totalSize = src.total();
+        size_t totalSize = srcMat.total();
 
         kmax.args((int)outerSize, (int)channels, (int)innerSize,
                   ocl::KernelArg::PtrReadOnly(dstMat), ocl::KernelArg::PtrReadWrite(bufMat));

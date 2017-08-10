@@ -62,12 +62,17 @@ public:
 
 #ifdef HAVE_OPENCL
     Ptr<OCL4DNNInnerProduct<float>> innerProductOp;
+    std::vector<UMat> shadow_blobs;
 #endif
 
     FullyConnectedLayerImpl(const LayerParams& params)
     {
         setParamsFrom(params);
         CV_Assert(1 <= blobs.size() && blobs.size() <= 2);
+
+        size_t n = blobs.size();
+        shadow_blobs.resize(n);
+        for (int i = 0; i < n; i++) blobs[i].copyTo(shadow_blobs[i]);
 
         int numOutput = params.get<int>("num_output");
         int innerSize = (int)blobs[0].total() / numOutput;
@@ -309,12 +314,20 @@ public:
     }
 #endif
 
+    int total_shape(const UMat* src, int start, int end = INT_MAX)
+    {
+        int total = 1;
+        if (end == INT_MAX) end = src->dims;
+        for (int i = start; i < end; i++) total *= src->size[i];
+        return total;
+    }
+
     bool forward_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
     {
         int axisCan = clamp(axis, inputs[0]->dims);
         int numOutput = blobs[0].size[0];
         int innerSize = blobs[0].size[1];
-        int outerSize = inputs[0]->getMat(ACCESS_READ).total(0, axisCan);
+        int outerSize = total_shape(inputs[0], 0, axisCan);
 
         if (innerProductOp.empty())
         {
@@ -327,13 +340,9 @@ public:
             innerProductOp = Ptr<OCL4DNNInnerProduct<float>>(new OCL4DNNInnerProduct<float>(config));
         }
 
-        UMat weights, biases;
-        weights = blobs[0].getUMat(ACCESS_READ);
-        biases = blobs[1].getUMat(ACCESS_READ);
-
         bool ret = true;
-        cl_mem weight_mem = (cl_mem)weights.handle(ACCESS_READ);
-        cl_mem bias_mem = (cl_mem)biases.handle(ACCESS_READ);
+        cl_mem weight_mem = (cl_mem)shadow_blobs[0].handle(ACCESS_READ);
+        cl_mem bias_mem = (bias) ? (cl_mem)shadow_blobs[1].handle(ACCESS_READ) : NULL;
 
         for (size_t i = 0; i < inputs.size(); i++)
         {
@@ -349,6 +358,7 @@ public:
 
         if (ret) return true;
 
+        UMat& weights = shadow_blobs[0];
         UMat biasOnesMat = UMat::ones(outerSize, 1, blobs[0].type());
         for (size_t i = 0; i < inputs.size(); i++)
         {
@@ -363,7 +373,10 @@ public:
             cv::gemm(srcMat, weights, 1, noArray(), 0, dstMat, GEMM_2_T);
 
             if (bias)
+            {
+                UMat& biases = shadow_blobs[1];
                 cv::gemm(biasOnesMat, biases, 1, dstMat, 1, dstMat, 0);
+            }
         }
 
         return true;
