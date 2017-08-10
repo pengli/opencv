@@ -399,6 +399,13 @@ CV__DNN_EXPERIMENTAL_NS_BEGIN
         CV_WRAP Mat forward(const String& outputName = String());
 
         /** @brief Runs forward pass to compute output of layer with name @p outputName.
+         *  @param outputBlob for first output of specified layer.
+         *  @param outputName name for layer which output is needed to get
+         *  @details By default runs forward pass for the whole network.
+         */
+        CV_WRAP void forward(UMat& outputBlob, const String& outputName = String());
+
+        /** @brief Runs forward pass to compute output of layer with name @p outputName.
          *  @param outputBlobs contains all output blobs for specified layer.
          *  @param outputName name for layer which output is needed to get
          *  @details If @p outputName is empty, runs forward pass for the whole network.

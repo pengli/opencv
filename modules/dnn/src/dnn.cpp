@@ -1449,15 +1449,45 @@ struct Net::Impl
             CV_Assert(preferableTarget == DNN_TARGET_CPU || preferableTarget == DNN_TARGET_OPENCL);
         }
 
-        if (preferableTarget == DNN_TARGET_OPENCL)
-            return ld.shadow_outputBlobs[pin.oid].getMat(ACCESS_READ);
+        return ld.outputBlobs[pin.oid];
+    }
+
+    void getBlob(const LayerPin& pin, UMat& outputBlob)
+    {
+        CV_TRACE_FUNCTION();
+
+        if (!pin.valid())
+            CV_Error(Error::StsObjectNotFound, "Requested blob not found");
+
+        LayerData &ld = layers[pin.lid];
+        if ((size_t)pin.oid >= ld.outputBlobs.size())
+        {
+            CV_Error(Error::StsOutOfRange, "Layer \"" + ld.name + "\" produce only " + toString(ld.outputBlobs.size()) +
+                                           " outputs, the #" + toString(pin.oid) + " was requsted");
+        }
+        if (preferableBackend != DNN_BACKEND_DEFAULT)
+        {
+            // Transfer data to CPU if it's require.
+            backendWrapper.wrap(ld.outputBlobs[pin.oid], preferableBackend,
+                                preferableTarget)->copyToHost();
+        }
         else
-            return ld.outputBlobs[pin.oid];
+        {
+            CV_Assert(preferableTarget == DNN_TARGET_CPU || preferableTarget == DNN_TARGET_OPENCL);
+        }
+
+        if (preferableTarget == DNN_TARGET_OPENCL)
+            outputBlob = ld.shadow_outputBlobs[pin.oid];
     }
 
     Mat getBlob(String outputName)
     {
         return getBlob(getPinByAlias(outputName));
+    }
+
+    void getBlob(String outputName, UMat& outputBlob)
+    {
+        getBlob(getPinByAlias(outputName), outputBlob);
     }
 };
 
@@ -1534,6 +1564,21 @@ Mat Net::forward(const String& outputName)
     impl->forwardToLayer(impl->getLayerData(layerName));
 
     return impl->getBlob(layerName);
+}
+
+void Net::forward(UMat& outputBlob, const String& outputName)
+{
+    CV_TRACE_FUNCTION();
+
+    String layerName = outputName;
+
+    if (layerName.empty())
+        layerName = getLayerNames().back();
+
+    impl->setUpNet();
+    impl->forwardToLayer(impl->getLayerData(layerName));
+
+    impl->getBlob(layerName, outputBlob);
 }
 
 void Net::forward(std::vector<Mat>& outputBlobs, const String& outputName)
