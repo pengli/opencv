@@ -216,8 +216,19 @@ struct ReLUFunctor
 {
     typedef ReLULayer Layer;
     float slope;
+    ocl::Kernel ker;
 
-    explicit ReLUFunctor(float slope_=1.f) : slope(slope_) {}
+    explicit ReLUFunctor(float slope_=1.f) : slope(slope_)
+    {
+        const char *buildoptSlope = (slope == 0) ? "-DRELU_NO_SLOPE" : "";
+        String buildopt = String("-DT=float ") + buildoptSlope;
+
+        if (!ker.create("ReLUForward", ocl::dnn::activations_oclsrc, buildopt))
+            return;
+
+        if (slope != 0)
+            ker.set(3, (float)slope);
+    }
 
     void apply(const float* srcptr, float* dstptr, int len, size_t planeSize, int cn0, int cn1) const
     {
@@ -294,14 +305,14 @@ struct ReLUFunctor
     {
         size_t wgSize = ocl::Device::getDefault().maxWorkGroupSize();
 
+        if (ker.empty())
+            return false;
+
         for (size_t i = 0; i < inputs.size(); i++)
         {
             CV_Assert((inputs[i]->offset == 0) && (outputs[i].offset == 0));
 
-            ocl::Kernel ker;
             size_t gSize = inputs[i]->total();
-
-            CV_Assert(initKernel(ker, *inputs[i]));
             ker.set(0, (int)gSize);
             ker.set(1, ocl::KernelArg::PtrReadOnly(*inputs[i]));
             ker.set(2, ocl::KernelArg::PtrWriteOnly(outputs[i]));
