@@ -1695,7 +1695,7 @@ void OCL4DNNConvSpatial<Dtype>::swizzleWeights(const Dtype *bottom,
     // in test phase and not in auto tuning
     // This requires we always call convolve again with the winner configuration
     // during the auto tuning stage.
-    if (tuned_ && swizzled_weights_ != NULL)
+    if (swizzled_weights_ != NULL)
         return;
 
     cl_int err;
@@ -2553,8 +2553,12 @@ void OCL4DNNConvSpatial<float>::setupConvolution(const float *bottom, float *top
 
     dbgPrint(std::cout << "Convolution Time:" << kernelQueue[kernel_index_]->executionTime << std::endl);
 
-    if (bestKernelConfig->kernelType != 2 && bestKernelConfig->kernelType != 5)
+    if (bestKernelConfig->kernelType != 2 && bestKernelConfig->kernelType != 5) {
+        if (swizzled_weights_) {
+            clReleaseMemObject((cl_mem)swizzled_weights_);
+        }
         swizzled_weights_ = NULL;
+    }
 
     for (int32_t x = 0; x < kernelQueue.size(); x++) {
         if (x != kernel_index_) {
