@@ -83,6 +83,20 @@ OCL4DNNPool<Dtype>::OCL4DNNPool(OCL4DNNPoolConfig config)
     {
         count_ *= config.out_shape[i];
     }
+
+    String opts;
+    switch (pool_method_)
+    {
+    case LIBDNN_POOLING_METHOD_MAX:
+        oclk_max_pool_forward.create(CL_KERNEL_SELECT("max_pool_forward"), ocl::dnn::dnn_pooling_oclsrc, opts);
+        break;
+    case LIBDNN_POOLING_METHOD_AVE:
+        oclk_ave_pool_forward.create(CL_KERNEL_SELECT("ave_pool_forward"), ocl::dnn::dnn_pooling_oclsrc, opts);
+        break;
+    case LIBDNN_POOLING_METHOD_STO:
+        oclk_sto_pool_forward.create(CL_KERNEL_SELECT("sto_pool_forward_test"), ocl::dnn::dnn_pooling_oclsrc, opts);
+        break;
+    }
 }
 
 template<typename Dtype>
@@ -111,7 +125,6 @@ bool OCL4DNNPool<Dtype>::Forward(const Dtype *bottom_data,
             {
                 mask_idx_.create(1, count_, CV_32FC1);
             }
-            ocl::Kernel oclk_max_pool_forward(CL_KERNEL_SELECT("max_pool_forward"), cv::ocl::dnn::dnn_pooling_oclsrc);
 
             argIdx = 0;
             oclk_max_pool_forward.set(argIdx++, count_);
@@ -139,8 +152,6 @@ bool OCL4DNNPool<Dtype>::Forward(const Dtype *bottom_data,
         break;
     case LIBDNN_POOLING_METHOD_AVE:
         {
-            ocl::Kernel oclk_ave_pool_forward(CL_KERNEL_SELECT("ave_pool_forward"), cv::ocl::dnn::dnn_pooling_oclsrc);
-
             argIdx = 0;
             oclk_ave_pool_forward.set(argIdx++, count_);
             oclk_ave_pool_forward.set(argIdx++, (cl_mem) bottom_data);
@@ -163,8 +174,6 @@ bool OCL4DNNPool<Dtype>::Forward(const Dtype *bottom_data,
         break;
     case LIBDNN_POOLING_METHOD_STO:
         {
-            ocl::Kernel oclk_sto_pool_forward(CL_KERNEL_SELECT("sto_pool_forward_test"), cv::ocl::dnn::dnn_pooling_oclsrc);
-
             argIdx = 0;
             oclk_sto_pool_forward.set(argIdx++, count_);
             oclk_sto_pool_forward.set(argIdx++, (cl_mem) bottom_data);

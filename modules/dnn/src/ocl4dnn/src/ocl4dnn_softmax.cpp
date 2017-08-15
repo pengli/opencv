@@ -70,6 +70,14 @@ OCL4DNNSoftmax<Dtype>::OCL4DNNSoftmax(OCL4DNNSoftmaxConfig config)
         scale_sz *= scale_dims[i];
 
     scale_data_.create(1, scale_sz, CV_32FC1);
+
+    String opts = " -cl-no-subgroup-ifp ";
+    if (use_slm_)
+        oclk_softmax_forward_kernel.create(CL_KERNEL_SELECT("softmax_forward_slm"),
+                                           ocl::dnn::softmax_loss_oclsrc, opts);
+    else
+        oclk_softmax_forward_kernel.create(CL_KERNEL_SELECT("softmax_forward"),
+                                           ocl::dnn::softmax_loss_oclsrc, opts);
 }
 
 template<typename Dtype>
@@ -83,17 +91,9 @@ bool OCL4DNNSoftmax<Dtype>::Forward(const Dtype* bottom_data, Dtype* top_data)
 {
     bool ret = true;
     ocl::Queue queue = ocl::Queue::getDefault();
-    bool intel_subgroup = 0 && ocl::Device::getDefault().intelSubgroupsSupport();
+    bool intel_subgroup = ocl::Device::getDefault().intelSubgroupsSupport();
     if (intel_subgroup && inner_num_ < 128)
     {
-        String opts = " -cl-no-subgroup-ifp ";
-        ocl::Kernel oclk_softmax_forward_kernel;
-        if (use_slm_)
-            oclk_softmax_forward_kernel.create(CL_KERNEL_SELECT("softmax_forward_slm"),
-                                               cv::ocl::dnn::softmax_loss_oclsrc, opts);
-        else
-            oclk_softmax_forward_kernel.create(CL_KERNEL_SELECT("softmax_forward"),
-                                               cv::ocl::dnn::softmax_loss_oclsrc, opts);
 
         size_t global_size[] = { 256, (size_t)outer_num_, 1 };
         size_t local_size[] = { 256, 1, 1 };
@@ -107,9 +107,9 @@ bool OCL4DNNSoftmax<Dtype>::Forward(const Dtype* bottom_data, Dtype* top_data)
             oclk_softmax_forward_kernel.set(argIdx++, (cl_mem) scale_data_.handle(ACCESS_WRITE));
             oclk_softmax_forward_kernel.set(argIdx++, (cl_mem) bottom_data);
             oclk_softmax_forward_kernel.set(argIdx++, (cl_mem) top_data);
-            clSetKernelArg((cl_kernel)oclk_softmax_forward_kernel.ptr(), argIdx++, channels_ * inner_num_* sizeof(Dtype), NULL);
-            clSetKernelArg((cl_kernel)oclk_softmax_forward_kernel.ptr(), argIdx++, inner_num_* sizeof(Dtype), NULL);
-            clSetKernelArg((cl_kernel)oclk_softmax_forward_kernel.ptr(), argIdx++, 16 * inner_num_* sizeof(Dtype), NULL);
+            oclk_softmax_forward_kernel.set(argIdx++, NULL, channels_ * inner_num_* sizeof(Dtype));
+            oclk_softmax_forward_kernel.set(argIdx++, NULL, inner_num_* sizeof(Dtype));
+            oclk_softmax_forward_kernel.set(argIdx++, NULL, 16 * inner_num_* sizeof(Dtype));
 
             OCL_CHECK(clEnqueueNDRangeKernel((cl_command_queue)queue.ptr(),
                                              (cl_kernel)oclk_softmax_forward_kernel.ptr(), 3,

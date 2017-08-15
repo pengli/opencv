@@ -353,6 +353,10 @@ class OCL4DNNPool
         int32_t width_;
         int32_t pooled_height_;
         int32_t pooled_width_;
+
+        ocl::Kernel oclk_max_pool_forward;
+        ocl::Kernel oclk_ave_pool_forward;
+        ocl::Kernel oclk_sto_pool_forward;
 };
 
 struct OCL4DNNInnerProductConfig
@@ -433,6 +437,7 @@ class OCL4DNNLRN
         int32_t height_;
         int32_t width_;
         bool norm_by_size_;
+        ocl::Kernel oclk_lrn_fill;
 };
 
 struct OCL4DNNSoftmaxConfig
@@ -460,6 +465,7 @@ class OCL4DNNSoftmax
         int32_t count_;
         bool use_slm_;
         UMat scale_data_;
+        ocl::Kernel oclk_softmax_forward_kernel;
 };
 #endif // HAVE_OPENCL
 } // namespace ocl4dnn
