@@ -1854,7 +1854,7 @@ struct Queue::Impl
         if( !dh )
             dh = (cl_device_id)pc->device(0).ptr();
         cl_int retval = 0;
-        handle = clCreateCommandQueue(ch, dh, 0, &retval);
+        handle = clCreateCommandQueue(ch, dh, CL_QUEUE_PROFILING_ENABLE, &retval);
         CV_OclDbgAssert(retval == CL_SUCCESS);
     }
 
