@@ -31,6 +31,10 @@ if(OPENCL_FOUND)
 
   set(HAVE_OPENCL 1)
 
+  if(ENABLE_OPENCL_PROFILING)
+    set(HAVE_OPENCL_PROFILING 1)
+  endif()
+
   if(WITH_OPENCL_SVM)
     set(HAVE_OPENCL_SVM 1)
   endif()
