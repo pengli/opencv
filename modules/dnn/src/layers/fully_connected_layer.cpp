@@ -278,8 +278,8 @@ public:
         for (size_t i = 0; i < input.size(); i++)
         {
             UMat srcMat, dstMat;
-            srcMat = input[i]->getUMat(ACCESS_READ);
-            dstMat = output[i].getUMat(ACCESS_WRITE);
+            srcMat = input[i]->reshape(1, outerSize).getUMat(ACCESS_READ);
+            dstMat = output[i].reshape(1, outerSize).getUMat(ACCESS_WRITE);
             dstMat.setTo(0.0f);
 
             if (!innerProductOp->Forward(srcMat, umat_blobs[0], (bias) ? umat_blobs[1] : UMat(), dstMat))

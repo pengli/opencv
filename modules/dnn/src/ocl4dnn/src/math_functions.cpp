@@ -67,104 +67,48 @@ void ocl4dnnGEMMCopyBufferToImage(cl_mem *image, UMat buffer, int offset,
 {
     ocl::Context ctx = ocl::Context::getDefault();
     ocl::Queue queue = ocl::Queue::getDefault();
-    cl_image_desc desc;
-    cl_image_format format;
 
-    memset(&desc, 0, sizeof(desc));
-    int src_offset = sizeof(Dtype) * offset;
     if (!is_matrix_a && transpose)
     {
         // For matrix B with transpose, we need to handle them differently.
         // As we can't use the sub group block read to get a row easily,
         // we have to use CL_FLOAT type with read_imagef to get the row.
-        cl_int err;
-        format.image_channel_data_type = CL_FLOAT;
-        format.image_channel_order = CL_R;
-        desc.image_type = CL_MEM_OBJECT_IMAGE2D;
-        desc.image_width = width;
-        desc.image_height = height;
-
-        if (*image == NULL)
-        {
-            *image = clCreateImage((cl_context)ctx.ptr(),
-                                   CL_MEM_READ_WRITE,
-                                   &format,
-                                   &desc,
-                                   NULL,
-                                   &err);
-            OCL_CHECK(err);
-        }
-
         if (ld == width)
         {
-            size_t origin[] = {0, 0, 0};
-            size_t region[] = {(size_t)desc.image_width, (size_t)desc.image_height, 1};
-
-            OCL_CHECK(clEnqueueCopyBufferToImage((cl_command_queue)queue.ptr(),
-                                                 (cl_mem) buffer.handle(ACCESS_READ), *image, src_offset,
-                                                 origin, region, 0, NULL, NULL));
+            ocl::Image2D im(buffer);
+            *image = (cl_mem) im.ptr();
         } else {
-            ocl::Kernel oclk_gemm_copy("gemm_buffer_copy_image_transpose_float", ocl::dnn::gemm_image_oclsrc);
-
+            UMat buffer_copy(width, height, CV_32FC1);
+            ocl::Kernel oclk_gemm_copy("gemm_buffer_copy_float", ocl::dnn::gemm_image_oclsrc);
             size_t global_copy[2];
             global_copy[0] = width;
             global_copy[1] = height;
+
             oclk_gemm_copy.set(0, ocl::KernelArg::PtrReadOnly(buffer));
-            oclk_gemm_copy.set(1, (cl_mem) *image);
+            oclk_gemm_copy.set(1, ocl::KernelArg::PtrWriteOnly(buffer_copy));
             oclk_gemm_copy.set(2, offset);
             oclk_gemm_copy.set(3, width);
             oclk_gemm_copy.set(4, height);
             oclk_gemm_copy.set(5, ld);
+
             oclk_gemm_copy.run(2, global_copy, NULL, false);
+            ocl::Image2D im(buffer_copy);
+            *image = (cl_mem) im.ptr();
         }
     } else {
-        if (*image == NULL)
-        {
-            desc.image_type = CL_MEM_OBJECT_IMAGE2D;
-            format.image_channel_data_type = CL_UNSIGNED_INT8;
-            format.image_channel_order = CL_RGBA;
-
-            if (!padding)
-            {
-                desc.image_width = width;
-                desc.image_height = height;
-            } else {
-                desc.image_width = padded_width;
-                desc.image_height = padded_height;
-            }
-            cl_int err;
-            *image = clCreateImage((cl_context)ctx.ptr(),
-                                   desc.buffer ? CL_MEM_READ_ONLY : CL_MEM_READ_WRITE,
-                                   &format,
-                                   &desc,
-                                   NULL,
-                                   &err);
-            OCL_CHECK(err);
-        }
-        if (!padding && desc.buffer != NULL)
-            return;
-        if (!padding && desc.buffer == NULL)
+        if (!padding)
         {
             // copy without padding.
-            size_t origin[] = {0, 0, 0};
-            size_t region[] = {(size_t)width, (size_t)height, 1};
-            OCL_CHECK(clEnqueueCopyBufferToImage((cl_command_queue)queue.ptr(),
-                                                 (cl_mem) buffer.handle(ACCESS_READ), *image, src_offset,
-                                                 origin, region, 0, NULL, NULL));
+            buffer.convertTo(buffer, CV_8UC4);
+            ocl::Image2D im(buffer);
+            *image = (cl_mem) im.ptr();
         } else {
-            ocl::Kernel oclk_gemm_copy("gemm_buffer_copy_image_no_transpose_float",
-                                       ocl::dnn::gemm_image_oclsrc);
-
-            size_t global_copy[2];
-            global_copy[0] = padding ? padded_width : width;
-            global_copy[1] = padding ? padded_height : height;
-            oclk_gemm_copy.set(0, ocl::KernelArg::PtrReadOnly(buffer));
-            oclk_gemm_copy.set(1, (cl_mem) *image);
-            oclk_gemm_copy.set(2, offset);
-            oclk_gemm_copy.set(3, width);
-            oclk_gemm_copy.set(4, height);
-            oclk_gemm_copy.set(5, ld);
-            oclk_gemm_copy.run(2, global_copy, NULL, false);
+            UMat buffer_copy;
+            buffer.convertTo(buffer, CV_8UC4);
+            copyMakeBorder(buffer, buffer_copy, 0, padded_height - height,
+                           0, padded_width - width, BORDER_CONSTANT, 0);
+            ocl::Image2D im(buffer_copy);
+            *image = (cl_mem) im.ptr();
         }
     }
 }

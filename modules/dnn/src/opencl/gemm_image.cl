@@ -598,6 +598,21 @@ GEMM_TT(0, 1, SCALAR, 1) // ALPHA != 1, BETA != 0
 #undef READ_IMAGE
 #undef SIZE_OF_ELEMENT
 
+__kernel void TEMPLATE(gemm_buffer_copy,Dtype)(
+    __global Dtype* A,
+    __global Dtype* B,
+    int offA,
+    int width,
+    int height,
+    int ldA)
+{
+    const int gidx = get_global_id(0);
+    const int gidy = get_global_id(1);
+    __global Dtype* A_off = A + offA;
+    Dtype srcA = A_off[gidy * ldA + gidx];
+    B[gidy * width + gidx] = srcA;
+}
+
 __kernel void TEMPLATE(gemm_buffer_copy_image_transpose,Dtype)(
     __global Dtype* A,
     __write_only image2d_t ImA,
