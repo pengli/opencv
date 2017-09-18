@@ -317,6 +317,79 @@ public:
     }
 #endif
 
+    bool forward_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        int axisCan = clamp(axis, inputs[0]->dims);
+        int numOutput = blobs[0].size[0];
+        int innerSize = blobs[0].size[1];
+        int outerSize = inputs[0]->getMat(ACCESS_READ).total(0, axisCan);
+        bool ret = true;
+
+        if (innerProductOp.empty())
+        {
+            OCL4DNNInnerProductConfig config;
+            config.num_output = numOutput;
+            config.bias_term = bias;
+            config.M = outerSize;
+            config.K = innerSize;
+
+            innerProductOp = Ptr<OCL4DNNInnerProduct<float>>(new OCL4DNNInnerProduct<float>(config));
+        }
+
+        UMat biasOnesMat = UMat::ones(outerSize, 1, umat_blobs[0].type());
+        for (size_t i = 0; i < inputs.size(); i++)
+        {
+            UMat srcMat, dstMat;
+            srcMat = *inputs[i]; //->reshape(1, outerSize);
+            dstMat = outputs[i]; //.reshape(1, outerSize);
+            dstMat.setTo(0.0f);
+
+            if (!innerProductOp->Forward(srcMat, umat_blobs[0], (bias) ? umat_blobs[1] : UMat(), dstMat))
+            {
+                ret = false;
+                break;
+            }
+
+            if (bias && (outerSize > 1))
+            {
+                UMat& biases = umat_blobs[1];
+                cv::gemm(biasOnesMat, biases, 1, dstMat, 1, dstMat, 0);
+            }
+        }
+
+        if (ret) return true;
+
+        UMat& weights = umat_blobs[0];
+        for (size_t i = 0; i < inputs.size(); i++)
+        {
+            MatShape inshape, outshape;
+            inshape = shape(outerSize, innerSize);
+            outshape = shape(outerSize, numOutput);
+
+            UMat srcMat, dstMat;
+            srcMat = inputs[i]->reshape(1, inshape.size(), &inshape[0]);
+            dstMat = outputs[i].reshape(1, outshape.size(), &outshape[0]);
+
+            cv::gemm(srcMat, weights, 1, noArray(), 0, dstMat, GEMM_2_T);
+
+            if (bias)
+            {
+                UMat& biases = umat_blobs[1];
+                cv::gemm(biasOnesMat, biases, 1, dstMat, 1, dstMat, 0);
+            }
+        }
+
+        return true;
+    }
+
+    void forward(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        CV_OCL_RUN((preferableTarget == DNN_TARGET_OPENCL) && ocl::Device::getDefault().isIntel(),
+                   forward_new(inputs, outputs, internals))
+
+        printf("-------- fully connect forward failed\n");
+    }
+
     void forward(std::vector<Mat*> &input, std::vector<Mat> &output, std::vector<Mat> &)
     {
         CV_TRACE_FUNCTION();

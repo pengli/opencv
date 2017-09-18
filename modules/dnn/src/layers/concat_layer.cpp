@@ -222,6 +222,68 @@ public:
     }
 #endif
 
+    bool forward_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        CV_TRACE_FUNCTION();
+        CV_TRACE_ARG_VALUE(name, "name", name.c_str());
+
+        int cAxis = clamp(axis, inputs[0]->dims);
+        UMat& outMat = outputs[0];
+
+        if (cAxis == 1 && outMat.dims == 4 && !padding)
+        {
+            int bottom_concat_axis;
+            int concat_size = inputs[0]->size[2] * inputs[0]->size[3];
+            int top_concat_axis = outputs[0].size[1];
+            int offset_concat_axis = 0;
+
+            for (size_t i = 0; i < inputs.size(); i++)
+            {
+                ocl::Kernel kernel;
+                String buildopt = String("-DDtype=") + ocl::typeToStr(inputs[0]->type());
+                CV_Assert(kernel.create("concat", ocl::dnn::concat_oclsrc, buildopt));
+
+                UMat& inpMat = *inputs[i];
+                bottom_concat_axis = inputs[i]->size[1];
+                size_t nthreads = inputs[i]->total();
+
+                kernel.set(0, (int)nthreads);
+                kernel.set(1, ocl::KernelArg::PtrReadOnly(inpMat));
+                kernel.set(2, (int)inputs[i]->size[0]);
+                kernel.set(3, (int)concat_size);
+                kernel.set(4, (int)top_concat_axis);
+                kernel.set(5, (int)bottom_concat_axis);
+                kernel.set(6, (int)offset_concat_axis);
+                kernel.set(7, ocl::KernelArg::PtrWriteOnly(outMat));
+
+                CV_Assert(kernel.run(1, &nthreads, NULL, false));
+                offset_concat_axis += bottom_concat_axis;
+            }
+        }
+        else
+        {
+            std::vector<Range> ranges(outputs[0].dims, Range::all());
+
+            ranges[cAxis].start = 0;
+            for (size_t i = 0; i < inputs.size(); i++)
+            {
+                ranges[cAxis].end = ranges[cAxis].start + inputs[i]->size[cAxis];
+                inputs[i]->copyTo(outMat(&ranges[0]));
+                ranges[cAxis].start = ranges[cAxis].end;
+            }
+        }
+
+        return true;
+    }
+
+    void forward(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        CV_OCL_RUN((preferableTarget == DNN_TARGET_OPENCL) && ocl::Device::getDefault().isIntel(),
+                   forward_new(inputs, outputs, internals))
+
+        printf("-------- concat forward failed\n");
+    }
+
     void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
         CV_TRACE_FUNCTION();

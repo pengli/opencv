@@ -1283,7 +1283,11 @@ struct Net::Impl
                     if (!ld.inputBlobsWrappers[i].empty())
                         ld.inputBlobsWrappers[i]->copyToHost();
                 }
-                layer->forward(ld.inputBlobs, ld.outputBlobs, ld.internals);
+                //printf("forwarding %s: %s\n", layer->name.c_str(), layer->type.c_str());
+                if (preferableTarget == DNN_TARGET_OPENCL)
+                    layer->forward(ld.shadow_inputBlobs, ld.shadow_outputBlobs, ld.shadow_internals);
+                else
+                    layer->forward(ld.inputBlobs, ld.outputBlobs, ld.internals);
                 for (int i = 0, n = ld.outputBlobsWrappers.size(); i < n; ++i)
                 {
                     if (!ld.outputBlobsWrappers[i].empty())
@@ -1428,7 +1432,11 @@ struct Net::Impl
         {
             CV_Assert(preferableTarget == DNN_TARGET_CPU || preferableTarget == DNN_TARGET_OPENCL);
         }
-        return ld.outputBlobs[pin.oid];
+
+        if (preferableTarget == DNN_TARGET_OPENCL)
+            return ld.shadow_outputBlobs[pin.oid].getMat(ACCESS_READ);
+        else
+            return ld.outputBlobs[pin.oid];
     }
 
     Mat getBlob(String outputName)
@@ -2144,6 +2152,11 @@ std::vector<Mat> Layer::finalize(const std::vector<Mat> &inputs)
     std::vector<Mat> outputs;
     this->finalize(inputs, outputs);
     return outputs;
+}
+
+void Layer::forward(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+{
+    CV_TRACE_FUNCTION();
 }
 
 void Layer::forward(const std::vector<Mat> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)

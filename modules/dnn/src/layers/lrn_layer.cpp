@@ -128,7 +128,49 @@ public:
 
         return true;
     }
+
+    bool forward_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        if (lrnOp.empty())
+        {
+            OCL4DNNLRNConfig config;
+            config.lrn_type = type == CHANNEL_NRM ?
+                              LRNParameter_NormRegion_ACROSS_CHANNELS :
+                              LRNParameter_NormRegion_WITHIN_CHANNEL;
+
+            CHECK_EQ(size % 2, 1)<< "LRN only supports odd values for local_size";
+            config.local_size = size;
+            config.alpha = alpha;
+            config.beta = beta;
+            config.k = bias;
+            CHECK_EQ(4, inputs[0]->dims) << "Input must have 4 axes, "
+                     << "corresponding to (num, channels, height, width)";
+            config.batch_size = inputs[0]->size[0];
+            config.channels = inputs[0]->size[1];
+            config.height = inputs[0]->size[2];
+            config.width = inputs[0]->size[3];
+            config.norm_by_size = normBySize;
+
+            lrnOp = Ptr<OCL4DNNLRN<float>>(new OCL4DNNLRN<float>(config));
+        }
+
+        UMat& inpMat = *inputs[0];
+        UMat& outMat = outputs[0];
+
+        if (!lrnOp->Forward(inpMat, outMat))
+            return false;
+
+        return true;
+    }
 #endif
+
+    void forward(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        CV_OCL_RUN((preferableTarget == DNN_TARGET_OPENCL) && ocl::Device::getDefault().isIntel(),
+                   forward_new(inputs, outputs, internals))
+
+        printf("-------- lrn forward failed\n");
+    }
 
     void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {

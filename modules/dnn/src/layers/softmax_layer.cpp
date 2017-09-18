@@ -167,7 +167,89 @@ public:
 
         return true;
     }
+
+    bool forward_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        if (softmaxOp.empty())
+        {
+            OCL4DNNSoftmaxConfig config;
+
+            int dims = inputs[0]->dims;
+            config.in_shape.resize(dims);
+            for (int i = 0; i < dims; i++)
+                config.in_shape[i] = inputs[0]->size[i];
+            config.axis = axisRaw;
+            config.channels = inputs[0]->size[axisRaw];
+
+            softmaxOp = Ptr<OCL4DNNSoftmax<float>>(new OCL4DNNSoftmax<float>(config));
+        }
+
+        if (softmaxOp->Forward(*inputs[0], outputs[0]));
+            return true;
+
+        UMat& srcMat = *inputs[0];
+        UMat& dstMat = outputs[0];
+        UMat& bufMat = internals[0];
+        Mat src = inputs[0]->getMat(ACCESS_READ);
+        srcMat.copyTo(dstMat);
+
+        int axis = clamp(axisRaw, src.dims);
+        size_t outerSize = src.total(0, axis);
+        size_t channels = src.size[axis];
+        size_t innerSize = src.total(axis + 1);
+
+        String buildOpts = String("-DT=") + ocl::typeToStr(src.type());
+        ocl::Kernel kmax, ksub, ksum, kdiv;
+
+        if (!kmax.create("kernel_channel_max", ocl::dnn::softmax_oclsrc, buildOpts))
+            return false;
+
+        if (!ksub.create("kernel_channel_subtract", ocl::dnn::softmax_oclsrc, buildOpts))
+            return false;
+
+        if (!ksum.create("kernel_channel_sum", ocl::dnn::softmax_oclsrc, buildOpts))
+            return false;
+
+        if (!kdiv.create("kernel_channel_div", ocl::dnn::softmax_oclsrc, buildOpts))
+            return false;
+
+        size_t wgSize = ocl::Device::getDefault().maxWorkGroupSize();
+        size_t bufSize = internals[0].total();
+        size_t totalSize = src.total();
+
+        kmax.args((int)outerSize, (int)channels, (int)innerSize,
+                  ocl::KernelArg::PtrReadOnly(dstMat), ocl::KernelArg::PtrReadWrite(bufMat));
+        if (!kmax.run(1, &bufSize, &wgSize, false))
+            return false;
+
+        ksub.args((int)totalSize, (int)outerSize, (int)channels, (int)innerSize,
+                  ocl::KernelArg::PtrReadOnly(bufMat), ocl::KernelArg::PtrReadWrite(dstMat));
+        if (!ksub.run(1, &totalSize, &wgSize, false))
+            return false;
+
+        cv::exp(dstMat, dstMat);
+
+        ksum.args((int)outerSize, (int)channels, (int)innerSize,
+                  ocl::KernelArg::PtrReadOnly(dstMat), ocl::KernelArg::PtrReadWrite(bufMat));
+        if (!ksum.run(1, &bufSize, &wgSize, false))
+            return false;
+
+        kdiv.args((int)totalSize, (int)outerSize, (int)channels, (int)innerSize, (int)logSoftMax,
+                  ocl::KernelArg::PtrReadOnly(bufMat), ocl::KernelArg::PtrReadWrite(dstMat));
+        if (!kdiv.run(1, &totalSize, &wgSize, false))
+            return false;
+
+        return true;
+    }
 #endif
+
+    void forward(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        CV_OCL_RUN((preferableTarget == DNN_TARGET_OPENCL) && ocl::Device::getDefault().isIntel(),
+                   forward_new(inputs, outputs, internals))
+
+        printf("-------- softmax forward failed\n");
+    }
 
     void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {

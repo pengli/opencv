@@ -693,7 +693,50 @@ public:
         }
         return true;
     }
+
+    bool forward_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        int group = inputs[0]->size[1] / umat_blobs[0].size[1];
+
+        if (convolutionOp.empty())
+        {
+            OCL4DNNConvConfig config;
+            config.in_shape = {inputs[0]->size[0], inputs[0]->size[1], inputs[0]->size[2], inputs[0]->size[3]};
+            config.out_shape = {outputs[0].size[0], outputs[0].size[1], outputs[0].size[2], outputs[0].size[3]};
+            config.kernel = {kernel.height, kernel.width};
+            config.pad = {pad.height, pad.width};
+            config.stride = {stride.height, stride.width};
+            config.dilation = {dilation.height, dilation.width};
+            config.group = group;
+            config.bias_term = (hasBias()) ? true : false;
+            config.weights_backward = false;
+            config.bias_backward = false;
+
+            convolutionOp = Ptr<OCL4DNNConvSpatial<float> >(new OCL4DNNConvSpatial<float>(config));
+        }
+
+        for (size_t ii = 0; ii < outputs.size(); ii++)
+        {
+            UMat& inpMat = *inputs[ii];
+            UMat& outMat = outputs[ii];
+
+            int batch_size = inpMat.size[0];
+
+            if (!convolutionOp->Forward(inpMat, umat_blobs[0], hasBias() ? umat_blobs[1] : UMat(),
+                                        outMat, batch_size))
+                return false;
+        }
+        return true;
+    }
 #endif
+
+    void forward(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        CV_OCL_RUN((preferableTarget == DNN_TARGET_OPENCL) && ocl::Device::getDefault().isIntel(),
+                   forward_new(inputs, outputs, internals))
+
+        printf("-------- conv forward failed\n");
+    }
 
     void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {

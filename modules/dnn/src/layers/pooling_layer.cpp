@@ -156,6 +156,48 @@ public:
     }
 #endif
 
+    bool forward_new(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        if (poolOp.empty())
+        {
+            OCL4DNNPoolConfig config;
+
+            config.in_shape = {inputs[0]->size[0], inputs[0]->size[1], inputs[0]->size[2], inputs[0]->size[3]};
+            config.out_shape = {outputs[0].size[0], outputs[0].size[1], outputs[0].size[2], outputs[0].size[3]};
+            config.kernel = {kernel.height, kernel.width};
+            config.pad = {pad.height, pad.width};
+            config.stride = {stride.height, stride.width};
+            config.channels = inputs[0]->size[1];
+            config.pool_method = type == MAX ? LIBDNN_POOLING_METHOD_MAX :
+                                (type == AVE ? LIBDNN_POOLING_METHOD_AVE :
+                                               LIBDNN_POOLING_METHOD_STO);
+            poolOp = Ptr<OCL4DNNPool<float>>(new OCL4DNNPool<float>(config));
+        }
+
+        for (size_t ii = 0; ii < inputs.size(); ii++)
+        {
+            UMat& inpMat = *inputs[ii];
+            int out_index = (type == MAX) ? 2 : 1;
+            UMat& outMat = outputs[out_index * ii];
+            UMat maskMat = (type == MAX) ? outputs[2 * ii + 1] : UMat();
+
+            CV_Assert(inpMat.offset == 0 && outMat.offset == 0);
+
+            if (!poolOp->Forward(inpMat, outMat, maskMat))
+                return false;
+        }
+
+        return true;
+    }
+
+    void forward(std::vector<UMat*> &inputs, std::vector<UMat> &outputs, std::vector<UMat> &internals)
+    {
+        CV_OCL_RUN((preferableTarget == DNN_TARGET_OPENCL) && ocl::Device::getDefault().isIntel(),
+                   forward_new(inputs, outputs, internals))
+
+        printf("-------- pool forward failed\n");
+    }
+
     void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {
         CV_TRACE_FUNCTION();

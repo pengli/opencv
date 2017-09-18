@@ -187,6 +187,14 @@ CV__DNN_EXPERIMENTAL_NS_BEGIN
          */
         virtual void forward(std::vector<Mat*> &input, std::vector<Mat> &output, std::vector<Mat> &internals) = 0;
 
+        /** @brief Given the @p input blobs, computes the output @p blobs.
+         *  @param[in]  input  the input blobs.
+         *  @param[out] output allocated output blobs, which will store results of the computation.
+         *  @param[out] internals allocated internal blobs
+         */
+        virtual void forward(std::vector<UMat*> &inputs, std::vector<UMat> &outputs,
+                             std::vector<UMat> &internals);
+
         /** @brief @overload */
         CV_WRAP void finalize(const std::vector<Mat> &inputs, CV_OUT std::vector<Mat> &outputs);
 
