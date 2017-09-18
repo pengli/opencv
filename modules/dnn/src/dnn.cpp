@@ -228,6 +228,9 @@ struct LayerData
     std::vector<Mat> outputBlobs;
     std::vector<Mat*> inputBlobs;
     std::vector<Mat> internals;
+    std::vector<UMat> shadow_outputBlobs;
+    std::vector<UMat*> shadow_inputBlobs;
+    std::vector<UMat> shadow_internals;
     // Computation nodes of implemented backends (except DEFAULT).
     std::map<int, Ptr<BackendNode> > backendNodes;
     // Flag for skip layer computation for specific backend.
@@ -348,7 +351,7 @@ public:
         }
     }
 
-    void reuseOrCreate(const MatShape& shape, const LayerPin& lp, Mat& dst, bool force)
+    void reuseOrCreate(const MatShape& shape, const LayerPin& lp, Mat& dst, UMat &shadow_dst, bool force)
     {
         Mat bestBlob;
         LayerPin bestBlobPin;
@@ -383,13 +386,15 @@ public:
         {
             reuse(bestBlobPin, lp);
             dst = Mat(shape, CV_32F, bestBlob.data);
+            shadow_dst.create(shape, CV_32F);
         }
         else
         {
             // if dst already has been allocated with total(shape) elements,
             // it won't be recrreated and pointer of dst.data remains the same.
             dst.create(shape, CV_32F);
-            addHost(lp, dst);
+            shadow_dst.create(shape, CV_32F);
+            addHost(lp, dst, shadow_dst);
         }
     }
 
@@ -404,11 +409,16 @@ public:
         std::vector<Mat>& outputBlobs = ld.outputBlobs,
                 &internalBlobs = ld.internals;
 
+        std::vector<UMat>& shadow_outputBlobs = ld.shadow_outputBlobs,
+                &shadow_internalBlobs = ld.shadow_internals;
+
         const ShapesVec& outShapes = layerShapes.out,
                 internalShapes = layerShapes.internal;
 
         outputBlobs.resize(std::max((size_t)1, outShapes.size())); //layer produce at least one output blob
         internalBlobs.resize(internalShapes.size());
+        shadow_outputBlobs.resize(std::max((size_t)1, outShapes.size()));
+        shadow_internalBlobs.resize(internalShapes.size());
 
         CV_Assert(ld.requiredOutputs.size() <= outShapes.size());
 
@@ -428,14 +438,17 @@ public:
         ShapesVec shapes(outShapes);
         shapes.insert(shapes.end(), internalShapes.begin(), internalShapes.end());
         std::vector<Mat*> blobs;
+        std::vector<UMat*> shadow_blobs;
         for(int i = 0; i < outputBlobs.size(); i++)
         {
             blobs.push_back(&outputBlobs[i]);
+            shadow_blobs.push_back(&shadow_outputBlobs[i]);
         }
 
         for(int i = 0; i < internalBlobs.size(); i++)
         {
             blobs.push_back(&internalBlobs[i]);
+            shadow_blobs.push_back(&shadow_internalBlobs[i]);
             if (total(internalShapes[i]))
             {
                 pinsForInternalBlobs.push_back(LayerPin(ld.id, ld.outputBlobs.size() + i));
@@ -463,12 +476,15 @@ public:
                     if (index < outShapes.size() && inPlace && !force)
                     {
                         CV_Assert(ld.inputBlobs[0]->total() == total(shapes[index]));
+                        CV_Assert(ld.shadow_inputBlobs[0]->total() == total(shapes[index]));
                         ld.outputBlobs[index] = ld.inputBlobs[0]->reshape(1, shapes[index]);
+                        ld.shadow_outputBlobs[index] =
+                            ld.shadow_inputBlobs[0]->reshape(1, shapes[index].size(), &shapes[index][0]);
                         reuse(ld.inputBlobsId[0], blobPin);
                     }
                     else
                     {
-                        reuseOrCreate(shapes[index], blobPin, *blobs[index], force);
+                        reuseOrCreate(shapes[index], blobPin, *blobs[index], *shadow_blobs[index], force);
                     }
                 }
             }
@@ -483,15 +499,17 @@ public:
         refCounter.clear();
         reuseMap.clear();
         memHosts.clear();
+        shadow_memHosts.clear();
     }
 
 private:
     // Register allocated memory.
-    void addHost(const LayerPin& lp, const Mat& mat)
+    void addHost(const LayerPin& lp, const Mat& mat, const UMat& shadow_mat)
     {
         CV_Assert(memHosts.find(lp) == memHosts.end());
         reuseMap[lp] = lp;
         memHosts[lp] = mat;
+        shadow_memHosts[lp] = shadow_mat;
     }
 
     std::map<LayerPin, int> refCounter;
@@ -499,6 +517,7 @@ private:
     // For origin blobs key == value.
     std::map<LayerPin, LayerPin> reuseMap;
     std::map<LayerPin, Mat> memHosts;
+    std::map<LayerPin, UMat> shadow_memHosts;
 };
 
 static Ptr<BackendWrapper> wrapMat(int backendId, int targetId, const cv::Mat& m)
@@ -655,6 +674,9 @@ struct Net::Impl
                 it->second.inputBlobs.clear();
                 it->second.outputBlobs.clear();
                 it->second.internals.clear();
+                it->second.shadow_inputBlobs.clear();
+                it->second.shadow_outputBlobs.clear();
+                it->second.shadow_internals.clear();
             }
             it->second.skipFlags.clear();
             //it->second.consumers.clear();
@@ -974,6 +996,7 @@ struct Net::Impl
 
         //bind inputs
         ld.inputBlobs.resize(ninputs);
+        ld.shadow_inputBlobs.resize(ninputs);
         ld.inputBlobsWrappers.resize(ninputs);
         for (size_t i = 0; i < ninputs; i++)
         {
@@ -981,6 +1004,7 @@ struct Net::Impl
             CV_Assert(from.valid());
             CV_DbgAssert(layers.count(from.lid) && (int)layers[from.lid].outputBlobs.size() > from.oid);
             ld.inputBlobs[i] = &layers[from.lid].outputBlobs[from.oid];
+            ld.shadow_inputBlobs[i] = &layers[from.lid].shadow_outputBlobs[from.oid];
             ld.inputBlobsWrappers[i] = layers[from.lid].outputBlobsWrappers[from.oid];
         }
 
@@ -1606,13 +1630,20 @@ void Net::setInput(const Mat &blob_, const String& name)
 
     LayerData &ld = impl->layers[pin.lid];
     ld.outputBlobs.resize( std::max(pin.oid+1, (int)ld.requiredOutputs.size()) );
+    ld.shadow_outputBlobs.resize( std::max(pin.oid+1, (int)ld.requiredOutputs.size()) );
     ld.outputBlobsWrappers.resize(ld.outputBlobs.size());
     MatShape prevShape = shape(ld.outputBlobs[pin.oid]);
     bool oldShape = prevShape == shape(blob_);
     if (oldShape)
+    {
         blob_.copyTo(ld.outputBlobs[pin.oid]);
+        blob_.copyTo(ld.shadow_outputBlobs[pin.oid]);
+    }
     else
+    {
         ld.outputBlobs[pin.oid] = blob_.clone();
+        blob_.copyTo(ld.shadow_outputBlobs[pin.oid]);
+    }
 
     if (!ld.outputBlobsWrappers[pin.oid].empty())
     {
