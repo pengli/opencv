@@ -112,6 +112,9 @@ int main(int argc, char **argv)
         //! [Check that network was read successfully]
     }
 
+    net.setPreferableBackend(DNN_BACKEND_DEFAULT);
+    net.setPreferableTarget(DNN_TARGET_OPENCL);
+
     //! [Prepare blob]
     Mat img = imread(imageFile);
     if (img.empty())
@@ -125,25 +128,29 @@ int main(int argc, char **argv)
                                   Scalar(104, 117, 123), false);   //Convert Mat to batch of images
     //! [Prepare blob]
 
-    Mat prob;
-    cv::TickMeter t;
+    UMat prob;
+
+    net.setInput(inputBlob, "data");        //set the network input
+    net.forward(prob, "prob");              //compute output
+
+    std::vector<double> layersTimings;
+    double freq = getTickFrequency() / 1000;
+    double time = 0;
+
     for (int i = 0; i < 10; i++)
     {
         CV_TRACE_REGION("forward");
         //! [Set input blob]
         net.setInput(inputBlob, "data");        //set the network input
-        //! [Set input blob]
-        t.start();
         //! [Make forward pass]
-        prob = net.forward("prob");                          //compute output
-        //! [Make forward pass]
-        t.stop();
+        net.forward(prob, "prob");              //compute output
+        time += net.getPerfProfile(layersTimings);
     }
 
     //! [Gather output]
     int classId;
     double classProb;
-    getMaxClass(prob, &classId, &classProb);//find the best class
+    getMaxClass(prob.getMat(ACCESS_READ), &classId, &classProb);//find the best class
     //! [Gather output]
 
     //! [Print results]
@@ -151,7 +158,7 @@ int main(int argc, char **argv)
     std::cout << "Best class: #" << classId << " '" << classNames.at(classId) << "'" << std::endl;
     std::cout << "Probability: " << classProb * 100 << "%" << std::endl;
     //! [Print results]
-    std::cout << "Time: " << (double)t.getTimeMilli() / t.getCounter() << " ms (average from " << t.getCounter() << " iterations)" << std::endl;
+    std::cout << "Time: " << time / freq / 10 << " ms (average from 10 iterations)" << std::endl;
 
     return 0;
 } //main
