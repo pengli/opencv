@@ -43,6 +43,7 @@
 #include "../precomp.hpp"
 #include "layers_common.hpp"
 #include "op_halide.hpp"
+#include "math_functions.hpp"
 
 namespace cv
 {
@@ -254,10 +255,34 @@ public:
         }
     };
 
+    bool forward_ocl(InputArrayOfArrays inps, OutputArrayOfArrays outs, OutputArrayOfArrays internals)
+    {
+        std::vector<UMat> inputs;
+        std::vector<UMat> outputs;
+
+        inps.getUMatVector(inputs);
+        outs.getUMatVector(outputs);
+
+        int count = outputs[0].total();
+        outputs[0].setTo(0.0f);
+        for (size_t i = 0; i < inputs.size(); i++)
+        {
+            bool ret = ocl4dnn::ocl4dnnAXPY<float>(count, 1, inputs[i], 0, outputs[0], 0);
+            if (!ret)
+                return false;
+        }
+
+        return true;
+    }
+
     void forward(InputArrayOfArrays inputs_arr, OutputArrayOfArrays outputs_arr, OutputArrayOfArrays internals_arr)
     {
         CV_TRACE_FUNCTION();
         CV_TRACE_ARG_VALUE(name, "name", name.c_str());
+
+        CV_OCL_RUN((preferableTarget == DNN_TARGET_OPENCL) &&
+                   OCL_PERFORMANCE_CHECK(ocl::Device::getDefault().isIntel()),
+                   forward_ocl(inputs_arr, outputs_arr, internals_arr))
 
         Layer::forward_fallback(inputs_arr, outputs_arr, internals_arr);
     }
