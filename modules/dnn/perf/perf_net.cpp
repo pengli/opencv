@@ -147,6 +147,12 @@ PERF_TEST_P_(DNNTestNetwork, SSD)
             Mat(cv::Size(300, 300), CV_32FC3), "detection_out", "caffe");
 }
 
+PERF_TEST_P_(DNNTestNetwork, MobileNet_SSD)
+{
+    processNet("dnn/MobileNetSSD_deploy.caffemodel", "dnn/MobileNetSSD_deploy.prototxt", "disabled",
+            Mat(cv::Size(300, 300), CV_32FC3), "detection_out", "caffe");
+}
+
 INSTANTIATE_TEST_CASE_P(/*nothing*/, DNNTestNetwork,
     testing::Combine(
         ::testing::Values(TEST_DNN_BACKEND),
