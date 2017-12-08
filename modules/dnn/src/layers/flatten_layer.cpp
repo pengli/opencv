@@ -107,22 +107,18 @@ public:
 #ifdef HAVE_OPENCL
     bool forward_ocl(InputArrayOfArrays inputs_arr, OutputArrayOfArrays outputs_arr, OutputArrayOfArrays internals_arr)
     {
-        std::vector<UMat> inpvec;
+        std::vector<UMat> inputs;
         std::vector<UMat> outputs;
 
-        inputs_arr.getUMatVector(inpvec);
+        inputs_arr.getUMatVector(inputs);
         outputs_arr.getUMatVector(outputs);
-
-        std::vector<UMat*> inputs(inpvec.size());
-        for (int i = 0; i < inpvec.size(); i++)
-            inputs[i] = &inpvec[i];
 
         for (size_t i = 0; i < inputs.size(); i++)
         {
             MatShape outShape = shape(outputs[i]);
-            UMat& output = outputs_arr.getUMatRef(i);
-            output = inputs[i]->reshape(1, (int)outShape.size(), &outShape[0]);
+            outputs[i] = inputs[i].reshape(1, (int)outShape.size(), &outShape[0]);
         }
+        outputs_arr.assign(outputs);
 
         return true;
     }
