@@ -120,9 +120,26 @@ int main(int argc, char** argv)
                      static_cast<int>(cap.get(CV_CAP_PROP_FOURCC)),
                      cap.get(CV_CAP_PROP_FPS), cropSize, true);
 
+    Mat frame;
+    cap >> frame; // get a new frame from camera/video or read image
+    if (frame.channels() == 4)
+        cvtColor(frame, frame, COLOR_BGRA2BGR);
+
+    //! [Prepare blob]
+    Mat inputBlob = blobFromImage(frame, inScaleFactor,
+                                  Size(inWidth, inHeight), meanVal, false); //Convert Mat to batch of images
+    //! [Prepare blob]
+
+    //! [Set input blob]
+    net.setInput(inputBlob, "data"); //set the network input
+    //! [Set input blob]
+
+    //! [Make forward pass]
+    Mat detection = net.forward("detection_out"); //compute output
+    //! [Make forward pass]
+
     for(;;)
     {
-        Mat frame;
         cap >> frame; // get a new frame from camera/video or read image
 
         if (frame.empty())
@@ -135,8 +152,8 @@ int main(int argc, char** argv)
             cvtColor(frame, frame, COLOR_BGRA2BGR);
 
         //! [Prepare blob]
-        Mat inputBlob = blobFromImage(frame, inScaleFactor,
-                                      Size(inWidth, inHeight), meanVal, false); //Convert Mat to batch of images
+        inputBlob = blobFromImage(frame, inScaleFactor,
+                                  Size(inWidth, inHeight), meanVal, false); //Convert Mat to batch of images
         //! [Prepare blob]
 
         //! [Set input blob]
@@ -144,7 +161,7 @@ int main(int argc, char** argv)
         //! [Set input blob]
 
         //! [Make forward pass]
-        Mat detection = net.forward("detection_out"); //compute output
+        detection = net.forward("detection_out"); //compute output
         //! [Make forward pass]
 
         vector<double> layersTimings;
@@ -153,6 +170,8 @@ int main(int argc, char** argv)
 
         Mat detectionMat(detection.size[2], detection.size[3], CV_32F, detection.ptr<float>());
 
+        cout << "Inference time, ms: " << time << endl;
+#if 0
         frame = frame(crop);
 
         ostringstream ss;
@@ -202,6 +221,7 @@ int main(int argc, char** argv)
             outputVideo << frame;
 
         imshow("detections", frame);
+#endif
         if (waitKey(1) >= 0) break;
     }
 
