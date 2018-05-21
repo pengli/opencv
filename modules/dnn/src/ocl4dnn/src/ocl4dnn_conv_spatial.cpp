@@ -362,7 +362,6 @@ void OCL4DNNConvSpatial<Dtype>::setupKernelDetails(int32_t kernelType,
         addDef("DY", blockM);
         addDef("DX", blockN);
         addDef("KERNEL_WIDTH_DIV2", kernel_w_ / 2);
-        addDef("KERNEL_SLICE_DIV2", (kernel_w_ * kernel_h_) / 2);
         addDef("TILE_N_LAST", M_ % 32);
         addDef("TILE_N_LAST_DIV8", (M_ % 32) / 8);
         addDef("APPLY_BIAS", bias_term_);
