@@ -126,7 +126,7 @@ public:
         UMat& src = inputs[0];
         UMat& dstMat = outputs[0];
 
-        if (softmaxOp->Forward(src, dstMat))
+        if (0 && softmaxOp->Forward(src, dstMat))
             return true;
 
         UMat& bufMat = internals[0];
