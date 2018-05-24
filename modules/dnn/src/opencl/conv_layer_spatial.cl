@@ -545,6 +545,31 @@ __kernel void Conv_Interleaved(GEMM_LIKE_KERNEL_ARGS)
 #if INPUT_PAD_H != 0 || INPUT_PAD_W != 0 || DILATION_X != 1 || DILATION_Y != 1 || INPUT_PAD_BOTTOM != 0 || INPUT_PAD_RIGHT != 0
             curr_y = saved_y;
 #endif
+            const bool kernel_width_is_odd = KERNEL_WIDTH % 2 == 1;
+            Dtype blockB00[KERNEL_HEIGHT*KERNEL_WIDTH*4];
+            Dtype8* p8BlockB00;
+            Dtype4* p4BlockB00;
+            Dtype*  pBlockB00 = (Dtype* )blockB00;
+
+            for (int i = 0; i < KERNEL_HEIGHT; i++)
+            {
+                p8BlockB00 = (Dtype8*)(pBlockB00 + i * 4 * KERNEL_WIDTH);
+                p4BlockB00 = (Dtype4*)(pBlockB00 + i * 4 * KERNEL_WIDTH);
+                interleaved_y = 0;
+
+                LOOP(KERNEL_WIDTH_DIV2, interleaved_y,
+                {
+                    p8BlockB00[interleaved_y] = as_Dtype8( SUB_GROUP_BLOCK_READ8( (const __global INT_TYPE *)src1_read ) );
+                    src1_read += WIDTH1 * 2;
+                })
+
+                if ( kernel_width_is_odd )
+                {
+                    p4BlockB00[KERNEL_WIDTH - 1] = as_Dtype4( SUB_GROUP_BLOCK_READ4( (const __global INT_TYPE *)src1_read ) );
+                    src1_read += WIDTH1 * 2;
+                }
+            }
+
             do
             {
                 // Load atile and btile.
@@ -557,7 +582,6 @@ __kernel void Conv_Interleaved(GEMM_LIKE_KERNEL_ARGS)
                 // (0, 1) (8, 1) (16, 1) (24, 1) ... =>    (0, 2) (8, 2) (16, 2) (24, 2) ...
                 // (0, 2) (8, 2) (16, 2) (24, 2) ...       ...
                 // ...
-                const bool kernel_width_is_odd = KERNEL_WIDTH % 2 == 1;
 
 #if INPUT_PAD_W == 0 && INPUT_PAD_H == 0 && DILATION_X == 1 && DILATION_Y == 1 && INPUT_PAD_BOTTOM == 0 && INPUT_PAD_RIGHT == 0
                 Dtype_t blockA00 = ( (const __global Dtype_t*)src0_read )[  0  ];
@@ -580,26 +604,10 @@ __kernel void Conv_Interleaved(GEMM_LIKE_KERNEL_ARGS)
 #endif
                 src0_read += (ROW_PITCH * DILATION_Y);
 
-                Dtype blockB00[KERNEL_WIDTH*4];
-                Dtype8* p8BlockB00 = (Dtype8*)blockB00;
-                Dtype4* p4BlockB00 = (Dtype4*)blockB00;
-                Dtype*  pBlockB00 =  (Dtype* )blockB00;
-
-                interleaved_y = 0;
-                LOOP(KERNEL_WIDTH_DIV2, interleaved_y,
-                {
-                    p8BlockB00[interleaved_y] = as_Dtype8( SUB_GROUP_BLOCK_READ8( (const __global INT_TYPE *)src1_read ) );
-                    src1_read += WIDTH1 * 2;
-                })
-                if ( kernel_width_is_odd )
-                {
-                    p4BlockB00[KERNEL_WIDTH - 1] = as_Dtype4( SUB_GROUP_BLOCK_READ4( (const __global INT_TYPE *)src1_read ) );
-                    src1_read += WIDTH1 * 2;
-                }
-
                 // Perform MADs
                 kernel_idx = 0;
                 interleaved_y = 0;
+                pBlockB00 = (Dtype* )blockB00 + patch_row * 4 * KERNEL_WIDTH;
                 LOOP(KERNEL_WIDTH_DIV2, interleaved_y,
                 {
                     kernel_y = interleaved_y * 2;
@@ -1024,9 +1032,9 @@ __kernel void Conv_Interleaved(GEMM_LIKE_KERNEL_ARGS)
                     DOT_PRODUCT_8( blockC31, pblockA01[kernel_y], pBlockB00[kernel_idx] ); kernel_idx++;
                 }
             }
-
             //while( ++patch_row < 1 ); //debug
             while( ++patch_row < KERNEL_HEIGHT );
+
 #if INPUT_PAD_W != 0 || INPUT_PAD_H != 0 || DILATION_X != 1 || DILATION_Y != 1 || INPUT_PAD_BOTTOM != 0 || INPUT_PAD_RIGHT != 0
             curr_y0 = saved_y0;
             curr_y1 = saved_y1;
